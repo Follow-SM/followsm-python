@@ -13,14 +13,13 @@ from .models import SymbolToxicityMetrics
 
 DEFAULT_BASE_URL = "https://follow-sm.com/api/v1"
 DEFAULT_WS_URL = "wss://follow-sm.com/api/v1/developer/toxicity/stream"
-FREE_COMMUNITY_KEY = "FREE_COMMUNITY_KEY"
 
 
 class FollowSMClient:
     """Client for the FollowSM Developer API.
 
-    Falls back to the shared FREE_COMMUNITY_KEY (30 req/min, unauthenticated
-    tier) when no `api_key` is supplied.
+    When `api_key` is omitted, requests are sent unauthenticated and are
+    subject to the backend's IP-based free-tier rate limit.
     """
 
     def __init__(
@@ -30,13 +29,13 @@ class FollowSMClient:
         ws_url: str = DEFAULT_WS_URL,
         timeout: float = 10.0,
     ):
-        self.api_key = api_key or FREE_COMMUNITY_KEY
+        self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.ws_url = ws_url
         self.timeout = timeout
 
     def _headers(self) -> dict:
-        return {"X-FollowSM-Key": self.api_key}
+        return {"X-FollowSM-Key": self.api_key} if self.api_key else {}
 
     def _handle_response(self, response: requests.Response) -> requests.Response:
         if response.status_code == 429:
@@ -73,7 +72,7 @@ class FollowSMClient:
 
     async def stream_toxicity(self) -> AsyncIterator[SymbolToxicityMetrics]:
         """Async-iterate live toxicity snapshots over the WebSocket feed."""
-        uri = f"{self.ws_url}?api_key={self.api_key}"
+        uri = f"{self.ws_url}?api_key={self.api_key}" if self.api_key else self.ws_url
         async with websockets.connect(uri) as ws:
             async for message in ws:
                 yield SymbolToxicityMetrics.model_validate(json.loads(message))

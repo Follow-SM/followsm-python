@@ -13,9 +13,11 @@ pip install followsm-sdk
 ```python
 from followsm_sdk import FollowSMClient
 
-client = FollowSMClient(api_key="fsm_live_...")  # or omit to use the free tier
+client = FollowSMClient(api_key="fsm_live_...")  # or omit for the free, IP-rate-limited tier
 snapshot = client.get_toxicity_snapshot("BTCUSDT")
 print(snapshot.vpin, snapshot.is_toxic_alert)
+
+toxic_pairs = client.get_toxic_pairs()  # also works without an api_key
 ```
 
 ## `SymbolToxicityMetrics` response
