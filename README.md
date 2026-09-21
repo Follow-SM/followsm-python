@@ -60,16 +60,20 @@ toxic_pairs = client.get_toxic_pairs()  # also works without an api_key
 
 ## Free vs Developer API
 
-| | Free / Unauthenticated | DEVELOPER_API ($199/mo) |
-|---|---|---|
-| Requests/min | 30 | 300 |
-| WebSocket connections | 1 | Multiple |
-| Binance pairs | Limited | 50+ |
-| Latency | Standard | Sub-10ms in-memory snapshots |
+| | Free / Unauthenticated | DEVELOPER_API ($199/mo) | Enterprise($499/mo) |
+|---|---|---|---|
+| Requests/min | 30 | 300 | 1,000 |
+| WebSocket streaming (`stream_toxicity()`) | ❌ | ❌ | ✅ |
+| Binance pairs | Limited | 50+ | 50+ |
+| Latency | Standard | Sub-10ms in-memory snapshots | Sub-10ms in-memory snapshots |
 
 On HTTP 429, the SDK raises `RateLimitExceededException` with an upgrade prompt pointing to https://follow-sm.com/pricing.
 
-## Live streaming
+## Live streaming (Enterprise only)
+
+`stream_toxicity()` connects to `/ws/v1/toxicity`, which requires an API key on an
+active **Enterprise** subscription — Developer API and free/unauthenticated keys are
+rejected with close code `4003`.
 
 ```python
 import asyncio
