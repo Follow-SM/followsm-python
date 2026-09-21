@@ -69,6 +69,6 @@ def test_get_toxicity_snapshot_raises_authentication_error(mocker):
         client.get_toxicity_snapshot("BTCUSDT")
 
 
-def test_default_api_key_is_free_community_key():
+def test_default_api_key_is_none():
     client = FollowSMClient()
     assert client.api_key is None
