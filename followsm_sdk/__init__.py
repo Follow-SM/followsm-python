@@ -9,7 +9,9 @@ from .models import (
     OrderBookDepthBand,
     PolymarketEventConfluence,
     PolymarketEventMetrics,
+    RiskConfig,
     SymbolToxicityMetrics,
+    evaluate_risk_action,
 )
 
 __all__ = [
@@ -24,6 +26,8 @@ __all__ = [
     "PolymarketEventConfluence",
     "PolymarketEventMetrics",
     "CompositeSignals",
+    "RiskConfig",
+    "evaluate_risk_action",
 ]
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

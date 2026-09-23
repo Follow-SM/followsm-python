@@ -1,6 +1,11 @@
-# followsm-sdk
+# FollowSM Official SDK (Python & TypeScript)
 
-Official Python SDK for the [FollowSM](https://follow-sm.com) smart-money & orderbook toxicity API.
+Official client libraries for the **FollowSM Market Intelligence Engine** — tracking Smart Money flows, Binance orderbook toxicity (VPIN), and Polymarket binary prediction confluence in real time.
+
+## 🚀 Key Features
+- **Binance Microstructure:** Tick-level VPIN, 1% orderbook toxicity bands, L1 imbalances, and volume Z-scores.
+- **Polymarket Confluence:** Binary event odds, 15m probability deltas ($\Delta\text{Prob}$), and Smart Money whale sweeps.
+- **Cross-Market Divergence:** Automated HFT risk recommendations ('NONE', 'WIDEN_SPREAD_1_5X', 'WIDEN_SPREAD_2X', 'HALT_MAKER_QUOTES')
 
 ## Install
 
@@ -109,6 +114,7 @@ recommendation. They return `ConfluenceSnapshot` (pydantic models), matching thi
         "condition_id": "0x...",
         "yes_token_id": "12345...",
         "direction": "bullish_if_yes",
+        "direction_confidence": 0.91,
         "implied_probability": 0.82,
         "prob_delta_15m": 0.09,
         "clob_order_flow_imbalance": 0.74,
@@ -120,7 +126,8 @@ recommendation. They return `ConfluenceSnapshot` (pydantic models), matching thi
   "composite_signals": {
     "is_toxic_alert": true,
     "cross_market_divergence_flag": false,
-    "recommended_action": "WIDEN_SPREAD_2X"
+    "recommended_action": "WIDEN_SPREAD_2X",
+    "direction_ambiguous": false,
   }
 }
 ```
@@ -128,13 +135,15 @@ recommendation. They return `ConfluenceSnapshot` (pydantic models), matching thi
 | Field | Description |
 |---|---|
 | `binance_microstructure.price_delta_15m_pct` | Spot price change over the last 15 minutes |
-| `polymarket_confluence.active_events[].direction` | Whether a rising `implied_probability` (YES) is bullish or bearish for spot |
+| `polymarket_confluence.active_events[].direction` | Whether a rising `implied_probability` (YES) is bullish, bearish, or `"neutral"` (semantically ambiguous question) for spot |
+| `polymarket_confluence.active_events[].direction_confidence` | `[0.0, 1.0]` semantic-similarity confidence backing `direction` |
 | `polymarket_confluence.active_events[].prob_delta_15m` | Change in implied probability over the last 15 minutes |
 | `polymarket_confluence.active_events[].clob_order_flow_imbalance` | Bid/(bid+ask) notional on the YES orderbook |
 | `polymarket_confluence.active_events[].smart_money_whale_sweeps_1h_usdt` | Rolling 60-minute notional from top-ranked smart-money wallets |
 | `polymarket_confluence.macro_event_risk_score` | `[0.0, 1.0]` composite risk, max over active events |
 | `composite_signals.cross_market_divergence_flag` | `true` when spot momentum opposes the Polymarket probability shift (bull/bear trap) |
 | `composite_signals.recommended_action` | `"NONE"` \| `"WIDEN_SPREAD_1_5X"` \| `"WIDEN_SPREAD_2X"` \| `"HALT_MAKER_QUOTES"` |
+| `composite_signals.direction_ambiguous` | `true` when a low-confidence `direction` downgraded the recommended action |
 
 ```python
 snapshot = client.get_confluence_snapshot("BTCUSDT")
@@ -149,6 +158,31 @@ Streaming (`stream_confluence()`, Enterprise only) connects to `/ws/v1/confluenc
 async for snapshot in client.stream_confluence():
     print(snapshot.symbol, snapshot.composite_signals.recommended_action)
 ```
+
+### Custom risk thresholds (`RiskConfig`)
+
+The backend's `recommended_action` uses fixed, conservative thresholds. Quant clients can
+re-derive the risk ladder from the exposed `binance_microstructure` with their own thresholds via
+`RiskConfig` and `evaluate_risk_action` / `client.evaluate_risk()`:
+
+```python
+from followsm_sdk import FollowSMClient, RiskConfig
+
+custom_config = RiskConfig(
+    vpin_widen_threshold=0.65,      # Custom VPIN trigger for WIDEN_SPREAD_2X
+    vpin_halt_threshold=0.85,       # Custom VPIN trigger for HALT_MAKER_QUOTES
+    min_semantic_confidence=0.70,   # Stricter than the backend's 0.65 safety gate
+)
+
+client = FollowSMClient(api_key="YOUR_KEY", risk_config=custom_config)
+
+snapshot = client.get_confluence_snapshot("BTCUSDT")
+print(client.evaluate_risk(snapshot))  # re-evaluated with your own thresholds
+```
+
+`evaluate_risk_action(snapshot, config)` is also importable standalone for stateless/batch use.
+Like the backend, it never returns `HALT_MAKER_QUOTES` when the divergence rests on an event
+whose `direction_confidence` is below `min_semantic_confidence`.
 
 ## Free vs Developer API
 

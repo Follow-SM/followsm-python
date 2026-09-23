@@ -9,7 +9,7 @@ import requests
 import websockets
 
 from .exceptions import AuthenticationError, RateLimitExceededException
-from .models import ConfluenceSnapshot, SymbolToxicityMetrics
+from .models import ConfluenceSnapshot, RiskConfig, SymbolToxicityMetrics, evaluate_risk_action
 
 DEFAULT_BASE_URL = "https://follow-sm.com/api/v1"
 DEFAULT_WS_URL = "wss://follow-sm.com/api/v1/developer/toxicity/stream"
@@ -30,12 +30,14 @@ class FollowSMClient:
         ws_url: str = DEFAULT_WS_URL,
         confluence_ws_url: str = DEFAULT_CONFLUENCE_WS_URL,
         timeout: float = 10.0,
+        risk_config: Optional[RiskConfig] = None,
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.ws_url = ws_url
         self.confluence_ws_url = confluence_ws_url
         self.timeout = timeout
+        self.risk_config = risk_config or RiskConfig()
 
     def _headers(self) -> dict:
         return {"X-FollowSM-Key": self.api_key} if self.api_key else {}
@@ -79,6 +81,10 @@ class FollowSMClient:
         async with websockets.connect(uri) as ws:
             async for message in ws:
                 yield SymbolToxicityMetrics.model_validate(json.loads(message))
+
+    def evaluate_risk(self, snapshot: ConfluenceSnapshot) -> str:
+        """Re-derive a recommended action from `snapshot` using this client's `risk_config`."""
+        return evaluate_risk_action(snapshot, self.risk_config)
 
     def get_confluence_snapshot(self, symbol: str) -> ConfluenceSnapshot:
         """Fetch the latest Binance × Polymarket ToxicitySnapshot for one symbol."""
