@@ -9,10 +9,11 @@ import requests
 import websockets
 
 from .exceptions import AuthenticationError, RateLimitExceededException
-from .models import SymbolToxicityMetrics
+from .models import ConfluenceSnapshot, SymbolToxicityMetrics
 
 DEFAULT_BASE_URL = "https://follow-sm.com/api/v1"
 DEFAULT_WS_URL = "wss://follow-sm.com/api/v1/developer/toxicity/stream"
+DEFAULT_CONFLUENCE_WS_URL = "wss://follow-sm.com/ws/v1/confluence"
 
 
 class FollowSMClient:
@@ -27,11 +28,13 @@ class FollowSMClient:
         api_key: Optional[str] = None,
         base_url: str = DEFAULT_BASE_URL,
         ws_url: str = DEFAULT_WS_URL,
+        confluence_ws_url: str = DEFAULT_CONFLUENCE_WS_URL,
         timeout: float = 10.0,
     ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.ws_url = ws_url
+        self.confluence_ws_url = confluence_ws_url
         self.timeout = timeout
 
     def _headers(self) -> dict:
@@ -76,3 +79,40 @@ class FollowSMClient:
         async with websockets.connect(uri) as ws:
             async for message in ws:
                 yield SymbolToxicityMetrics.model_validate(json.loads(message))
+
+    def get_confluence_snapshot(self, symbol: str) -> ConfluenceSnapshot:
+        """Fetch the latest Binance × Polymarket ToxicitySnapshot for one symbol."""
+        response = requests.get(
+            f"{self.base_url}/developer/confluence/snapshot",
+            params={"symbol": symbol},
+            headers=self._headers(),
+            timeout=self.timeout,
+        )
+        self._handle_response(response)
+        return ConfluenceSnapshot.model_validate(response.json())
+
+    def get_confluence_snapshots(self, toxic_only: bool = False) -> List[ConfluenceSnapshot]:
+        """Fetch every fresh ConfluenceSnapshot, optionally filtered to toxic-alert symbols."""
+        response = requests.get(
+            f"{self.base_url}/developer/confluence/snapshots",
+            params={"toxic_only": toxic_only},
+            headers=self._headers(),
+            timeout=self.timeout,
+        )
+        self._handle_response(response)
+        return [ConfluenceSnapshot.model_validate(item) for item in response.json()]
+
+    async def stream_confluence(self) -> AsyncIterator[ConfluenceSnapshot]:
+        """Async-iterate live ConfluenceSnapshot frames (Enterprise only, /ws/v1/confluence)."""
+        uri = (
+            f"{self.confluence_ws_url}?api_key={self.api_key}"
+            if self.api_key
+            else self.confluence_ws_url
+        )
+        async with websockets.connect(uri) as ws:
+            async for message in ws:
+                payload = json.loads(message)
+                if isinstance(payload, dict) and payload.get("type") == "ping":
+                    continue
+                for item in payload:
+                    yield ConfluenceSnapshot.model_validate(item)
