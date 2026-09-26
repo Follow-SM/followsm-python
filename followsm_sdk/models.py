@@ -84,10 +84,17 @@ class ConfluenceSnapshot(BaseModel):
 
 
 class RiskConfig(BaseModel):
-    """Custom thresholds for `evaluate_risk_action`, overriding the backend's defaults."""
+    """Custom thresholds for `evaluate_risk_action`, overriding the backend's defaults.
 
+    The percentile thresholds apply whenever the snapshot carries `vpin_percentile`;
+    the raw `vpin_*` thresholds are the fallback while the backend is still warming up.
+    """
+
+    vpin_percentile_widen_threshold: float = 0.90
+    vpin_percentile_halt_threshold: float = 0.95
     vpin_widen_threshold: float = 0.60
     vpin_halt_threshold: float = 0.80
+    ob_toxicity_threshold: float = 2.0
     min_semantic_confidence: float = 0.65
 
 
@@ -99,17 +106,23 @@ def evaluate_risk_action(snapshot: ConfluenceSnapshot, config: Optional[RiskConf
     direction_confidence is below `config.min_semantic_confidence`.
     """
     config = config or RiskConfig()
-    vpin = snapshot.binance_microstructure.vpin
+    micro = snapshot.binance_microstructure
+    if micro.vpin_percentile is not None:
+        level = micro.vpin_percentile
+        widen, halt = config.vpin_percentile_widen_threshold, config.vpin_percentile_halt_threshold
+    else:
+        level, widen, halt = micro.vpin, config.vpin_widen_threshold, config.vpin_halt_threshold
+    toxic_book = micro.ob_toxicity_1pct > config.ob_toxicity_threshold
     divergence = snapshot.composite_signals.cross_market_divergence_flag
     min_confidence = min(
         (e.direction_confidence for e in snapshot.polymarket_confluence.active_events),
         default=1.0,
     )
-    if vpin >= config.vpin_halt_threshold and divergence:
+    if (level >= halt or toxic_book) and divergence:
         if min_confidence < config.min_semantic_confidence:
             return "WIDEN_SPREAD_1_5X"
         return "HALT_MAKER_QUOTES"
-    if vpin >= config.vpin_widen_threshold:
+    if level >= widen or toxic_book:
         return "WIDEN_SPREAD_2X"
     if divergence:
         return "WIDEN_SPREAD_1_5X"

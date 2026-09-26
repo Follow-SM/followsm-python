@@ -170,9 +170,12 @@ re-derive the risk ladder from the exposed `binance_microstructure` with their o
 from followsm_sdk import FollowSMClient, RiskConfig
 
 custom_config = RiskConfig(
-    vpin_widen_threshold=0.65,      # Custom VPIN trigger for WIDEN_SPREAD_2X
-    vpin_halt_threshold=0.85,       # Custom VPIN trigger for HALT_MAKER_QUOTES
-    min_semantic_confidence=0.70,   # Stricter than the backend's 0.65 safety gate
+    vpin_percentile_widen_threshold=0.85,  # vpin_percentile trigger for WIDEN_SPREAD_2X (default 0.90)
+    vpin_percentile_halt_threshold=0.97,   # vpin_percentile trigger for HALT_MAKER_QUOTES (default 0.95)
+    vpin_widen_threshold=0.65,             # raw-VPIN fallback while vpin_percentile is None
+    vpin_halt_threshold=0.85,
+    ob_toxicity_threshold=2.5,             # 1% book ask/bid ratio that counts as toxic (default 2.0)
+    min_semantic_confidence=0.70,          # Stricter than the backend's 0.65 safety gate
 )
 
 client = FollowSMClient(api_key="YOUR_KEY", risk_config=custom_config)
