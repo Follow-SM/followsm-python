@@ -48,11 +48,11 @@ def _snapshot(vpin=0.85, divergence=True, confidence=1.0, vpin_percentile=None) 
 
 
 def test_evaluate_risk_action_defaults_halt_on_high_vpin_and_divergence():
-    assert evaluate_risk_action(_snapshot(vpin=0.85, divergence=True)) == "HALT_MAKER_QUOTES"
+    assert evaluate_risk_action(_snapshot(vpin=0.92, divergence=True)) == "HALT_MAKER_QUOTES"
 
 
 def test_evaluate_risk_action_downgrades_halt_on_low_confidence():
-    snapshot = _snapshot(vpin=0.85, divergence=True, confidence=0.4)
+    snapshot = _snapshot(vpin=0.92, divergence=True, confidence=0.4)
     assert evaluate_risk_action(snapshot) == "WIDEN_SPREAD_1_5X"
 
 
@@ -64,8 +64,14 @@ def test_evaluate_risk_action_respects_custom_thresholds():
 
 def test_client_evaluate_risk_uses_its_configured_risk_config():
     client = FollowSMClient(risk_config=RiskConfig(min_semantic_confidence=0.9))
-    snapshot = _snapshot(vpin=0.85, divergence=True, confidence=0.8)
+    snapshot = _snapshot(vpin=0.92, divergence=True, confidence=0.8)
     assert client.evaluate_risk(snapshot) == "WIDEN_SPREAD_1_5X"
+
+
+def test_raw_fallback_ignores_normal_thin_pair_vpin():
+    # 0.65 is ~median for thin pairs (BONK/CRV) and must not widen while the percentile warms up.
+    assert evaluate_risk_action(_snapshot(vpin=0.65, divergence=False)) == "NONE"
+    assert evaluate_risk_action(_snapshot(vpin=0.82, divergence=False)) == "WIDEN_SPREAD_2X"
 
 
 def test_vpin_percentile_takes_precedence_over_raw_vpin():

@@ -18,7 +18,7 @@ class SymbolToxicityMetrics(BaseModel):
     timestamp: float
     price: float
     vpin: float
-    # Rank of vpin within this symbol's trailing 24h [0, 1]; None while warming up.
+    # Rank of vpin within this symbol's own recent history [0, 1]; None while warming up.
     vpin_percentile: Optional[float] = None
     ob_toxicity_1pct: float
     ob_imbalance_l1: float
@@ -92,8 +92,9 @@ class RiskConfig(BaseModel):
 
     vpin_percentile_widen_threshold: float = 0.90
     vpin_percentile_halt_threshold: float = 0.95
-    vpin_widen_threshold: float = 0.60
-    vpin_halt_threshold: float = 0.80
+    # Raw fallback: only extreme readings act while vpin_percentile is unavailable.
+    vpin_widen_threshold: float = 0.80
+    vpin_halt_threshold: float = 0.90
     ob_toxicity_threshold: float = 2.0
     min_semantic_confidence: float = 0.65
 
