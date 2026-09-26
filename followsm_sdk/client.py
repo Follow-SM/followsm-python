@@ -12,7 +12,7 @@ from .exceptions import AuthenticationError, RateLimitExceededException
 from .models import ConfluenceSnapshot, RiskConfig, SymbolToxicityMetrics, evaluate_risk_action
 
 DEFAULT_BASE_URL = "https://follow-sm.com/api/v1"
-DEFAULT_WS_URL = "wss://follow-sm.com/api/v1/developer/toxicity/stream"
+DEFAULT_WS_URL = "wss://follow-sm.com/ws/v1/toxicity"
 DEFAULT_CONFLUENCE_WS_URL = "wss://follow-sm.com/ws/v1/confluence"
 
 
@@ -45,12 +45,12 @@ class FollowSMClient:
     def _handle_response(self, response: requests.Response) -> requests.Response:
         if response.status_code == 429:
             reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
-            raise RateLimitExceededException(
-                response.json().get("detail", "Rate limit exceeded")
-                if response.content
-                else "Rate limit exceeded",
-                reset_time,
-            )
+            try:
+                detail = response.json().get("detail", "Rate limit exceeded")
+            except ValueError:
+                # The per-IP global limiter answers with a plain-text body.
+                detail = response.text or "Rate limit exceeded"
+            raise RateLimitExceededException(detail, reset_time)
         if response.status_code in (401, 403):
             raise AuthenticationError(response.text)
         response.raise_for_status()
@@ -80,7 +80,11 @@ class FollowSMClient:
         uri = f"{self.ws_url}?api_key={self.api_key}" if self.api_key else self.ws_url
         async with websockets.connect(uri) as ws:
             async for message in ws:
-                yield SymbolToxicityMetrics.model_validate(json.loads(message))
+                payload = json.loads(message)
+                if isinstance(payload, dict) and payload.get("type") == "ping":
+                    continue
+                for item in payload:
+                    yield SymbolToxicityMetrics.model_validate(item)
 
     def evaluate_risk(self, snapshot: ConfluenceSnapshot) -> str:
         """Re-derive a recommended action from `snapshot` using this client's `risk_config`."""

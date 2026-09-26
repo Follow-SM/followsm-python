@@ -72,3 +72,42 @@ def test_get_toxicity_snapshot_raises_authentication_error(mocker):
 def test_default_api_key_is_none():
     client = FollowSMClient()
     assert client.api_key is None
+
+
+def test_plain_text_429_raises_rate_limit_exception(mocker):
+    response = _mock_response(mocker, 429, text="Global rate limit exceeded")
+    response.content = b"Global rate limit exceeded"
+    response.json.side_effect = ValueError("not json")
+    mocker.patch("followsm_sdk.client.requests.get", return_value=response)
+
+    with pytest.raises(RateLimitExceededException, match="Global rate limit exceeded"):
+        FollowSMClient().get_toxicity_snapshot("BTCUSDT")
+
+
+def test_stream_toxicity_parses_list_frames_and_skips_pings(mocker):
+    import asyncio
+    import json
+
+    frames = [json.dumps([SNAPSHOT_JSON, {**SNAPSHOT_JSON, "symbol": "ETHUSDT"}]), json.dumps({"type": "ping"})]
+
+    class FakeWS:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            for frame in frames:
+                yield frame
+
+    connect = mocker.patch("followsm_sdk.client.websockets.connect", return_value=FakeWS())
+
+    async def collect():
+        return [m.symbol async for m in FollowSMClient(api_key="k").stream_toxicity()]
+
+    assert asyncio.run(collect()) == ["BTCUSDT", "ETHUSDT"]
+    assert connect.call_args.args[0] == "wss://follow-sm.com/ws/v1/toxicity?api_key=k"
