@@ -18,6 +18,8 @@ class SymbolToxicityMetrics(BaseModel):
     timestamp: float
     price: float
     vpin: float
+    # Rank of vpin within this symbol's trailing 24h [0, 1]; None while warming up.
+    vpin_percentile: Optional[float] = None
     ob_toxicity_1pct: float
     ob_imbalance_l1: float
     depth_bands: Dict[str, OrderBookDepthBand]
@@ -33,6 +35,7 @@ class SymbolToxicityMetrics(BaseModel):
 class BinanceMicrostructureMetrics(BaseModel):
     price: float
     vpin: float
+    vpin_percentile: Optional[float] = None
     ob_toxicity_1pct: float
     ob_imbalance_l1: float
     depth_bands: Dict[str, OrderBookDepthBand]

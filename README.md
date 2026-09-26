@@ -54,14 +54,15 @@ toxic_pairs = client.get_toxic_pairs()  # also works without an api_key
 | `symbol` | `str` | Trading pair, e.g. `"BTCUSDT"` |
 | `timestamp` | `float` | Unix epoch seconds when the snapshot was computed |
 | `price` | `float` | Last traded price |
-| `vpin` | `float` | Volume-Synchronized Probability of Informed Trading, `[0.0, 1.0]` |
+| `vpin` | `float` | Volume-Synchronized Probability of Informed Trading, `[0.0, 1.0]` (per-symbol bucket = 24h volume / 1200) |
+| `vpin_percentile` | `float \| None` | Rank of `vpin` within this symbol's own trailing 24h, `[0.0, 1.0]`; `None` for ~1h after the feed starts |
 | `ob_toxicity_1pct` | `float` | Ask/bid notional ratio within ±1% of mid price |
 | `ob_imbalance_l1` | `float` | Best bid/ask (L1) imbalance |
 | `depth_bands` | `dict[str, OrderBookDepthBand]` | Keyed by band width (`"0.5%"`, `"1.0%"`, `"2.0%"`), each with `bid_notional`, `ask_notional`, `imbalance_ratio` |
 | `volume_z_score` | `float` | Robust Z-score of recent traded volume |
 | `natr_15m` | `float` | Normalized ATR over 15-minute candles |
 | `taker_buy_ratio` | `float` | Share of taker volume that was buy-side |
-| `is_toxic_alert` | `bool` | `True` when `vpin > 0.70` or `ob_toxicity_1pct > 2.0` |
+| `is_toxic_alert` | `bool` | `True` when `vpin_percentile >= 0.90` or `ob_toxicity_1pct > 2.0` |
 
 ## Live streaming (Enterprise only)
 
